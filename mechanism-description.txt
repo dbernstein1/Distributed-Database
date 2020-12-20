@@ -1,0 +1,61 @@
+Node-to-shard Organization/Balancing:
+    For Determining what node would be organized into which shard we ended up implementing a hashing method
+    where the ip address of the node was hashed using the MD5 hash function and then modulo'd by the number of
+    shards that was passed it in container/node creation. 
+        i.e hash(ip) % shard_count = [number from 0 -> shard_count] (exclusive).
+    Since there is no guarantee that the hash function would balance the nodes making sure each shard has at least 2 nodes. 
+    We implemented an extra check to see if each shard had at least 2 nodes. If not then we would increment the hash seed and start the
+    process over again, Repeating until a balance was achieved. 
+
+
+
+Key-to-shard Mapping:
+    To map the keys to each shard the same function was used that balanced the nodes to shards.
+    After the nodes were balanced, each node contained the same hash key that created the balance. we decided
+    to use the same method to determine which key would be contained in which shard (excluding the two_node_shard check). 
+        i.e hash(key) % shard_count = [number from 0 -> shard_count] (exclusive)
+    this would return the shard_id that should contain the key. This also works for when the shard count changed, Since
+    its modulo'd by the shard count. So if we had to rebalance we can still use the same method.
+
+
+
+
+Resharding logic:
+    To reshard the network we broke it apart in several steps. We also decided that the node 
+    recieving the reshard request should do most of the work/calculations and send the results to the rest
+    of the Nodes to simplify the work.
+
+        .5) first check if reshard is even possible by dividing the numbers of number of nodes by shard_count and checking its >= 2
+
+        1) The node receiving the request will collate the Key value store of all shards into one python dict.
+
+            -This is done by doing a custom GET request on the key-value-store endpoint of the first node of each
+            shard listed in its members-list. This GET requets would return the WHOLE KV_store of the shard then the node
+            would add it to a temporary Python Dict. At the end of this step the Node now has a temp dict of all KV in all shards.
+    
+        2) Rebalancing nodes and creating a new members-list
+
+            - In this part we just created a new members list by applying our node-to-shard mechanism explained above.
+            This will also try to balance the nodes even if the shard count has changed.
+
+        3)Rebalancing the KV_store
+            
+            -We decided to rebalance the KV-store after every reshard request. We took collated KV-Store and
+            created a nested dict by rehasing all keys in the KV-Store and adding it to the correct shard_id mapping.
+                i.e {'shard_id1':{ key1:value1,
+                                   key2:value2,...
+                                },
+                    'shard_id2':{ key1:value1,
+                                  key2:value2,...
+                                },...
+                    }
+        
+        4) Broadcast all information to all other nodes.
+
+        -we created new endpoints so each node can take a batch of information and update its own varibles easily
+        This allows us to send everything we have calculated above to each node so they dont have to do any extra
+        calulations. With these new endpoints and the newly calculated members list we can send to each node the new members-list,
+        hash key (seed), the appropriate shard_id, and the portion of the KV-store they are in charge of.
+        After all requests are done, each node has now been fully updated and normal KV-store requests can continue as usual.
+        
+

@@ -1,0 +1,10 @@
+Cassidy Norfleet: Filled out logic for various methods. Hash seed implementation and bug fixes.
+
+
+Daniel Bernstein: ShardClass and shard endpoints skeleton. General bug fixes.
+
+
+Justin Armbrust: Base ShardClass implementation, add-member logic, and multiple bug fixes.
+
+
+James Goodman: ShardClass methods, testing/bug fixes
